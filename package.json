@@ -110,7 +110,7 @@
         },
         "targetsRunner.targetsFile": {
           "type": "string",
-          "default": ".vscode/targets.test.json",
+          "default": "epm_targets_lists.json",
           "description": "Path to targets JSON file relative to the workspace root."
         },
         "targetsRunner.buildSystem": {

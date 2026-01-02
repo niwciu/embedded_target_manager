@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { DashboardController } from './dashboardController';
 import { MenuViewProvider } from './menu/menuView';
+import { DEFAULT_ALL_TEST_TARGETS, DEFAULT_HW_TARGETS } from './discovery/targets';
 
 let testController: DashboardController | undefined;
 let hwController: DashboardController | undefined;
@@ -11,12 +12,16 @@ export function activate(context: vscode.ExtensionContext): void {
     moduleLabel: 'Module Name',
     actionsLabel: 'Module Actions',
     title: 'Targets Dashboard',
+    targetsListKey: 'all_test_targets',
+    defaultTargets: DEFAULT_ALL_TEST_TARGETS,
   });
   hwController = new DashboardController(context, {
     modulesRootKey: 'hwConfigurationsRoot',
     moduleLabel: 'HW configuration',
     actionsLabel: 'Actions',
     title: 'HW Targets Dashboard',
+    targetsListKey: 'hw',
+    defaultTargets: DEFAULT_HW_TARGETS,
   });
   const menuViewProvider = new MenuViewProvider();
 

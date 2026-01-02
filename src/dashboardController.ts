@@ -27,6 +27,8 @@ interface DashboardControllerOptions {
   moduleLabel: string;
   actionsLabel: string;
   title: string;
+  targetsListKey: 'targets' | 'all_test_targets' | 'test' | 'hw' | 'hw_test' | 'ci' | 'reports' | 'format';
+  defaultTargets: string[];
 }
 
 export class DashboardController implements vscode.Disposable {
@@ -94,7 +96,11 @@ export class DashboardController implements vscode.Disposable {
       return;
     }
 
-    const targetLists = await Promise.all(folders.map((folder) => loadTargets(folder, settings.targetsFile)));
+    const targetLists = await Promise.all(
+      folders.map((folder) =>
+        loadTargets(folder, settings.targetsFile, this.options.targetsListKey, this.options.defaultTargets),
+      ),
+    );
     const mergedTargets = this.mergeTargets(targetLists);
     this.stateStore.setTargets(mergedTargets);
 
@@ -407,7 +413,7 @@ export class DashboardController implements vscode.Disposable {
     const config = vscode.workspace.getConfiguration('targetsRunner');
     return {
       modulesRoot: config.get<string>(this.options.modulesRootKey, config.get<string>('modulesRoot', 'test')),
-      targetsFile: config.get<string>('targetsFile', '.vscode/targets.test.json'),
+      targetsFile: config.get<string>('targetsFile', 'epm_targets_lists.json'),
       buildSystem: config.get<BuildSystem>('buildSystem', 'auto'),
       makeJobs: config.get<string | number>('makeJobs', 'auto'),
       maxParallel: config.get<number>('maxParallel', 4),
