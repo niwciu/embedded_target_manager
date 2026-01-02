@@ -70,7 +70,7 @@ export class DashboardViewProvider implements vscode.WebviewViewProvider {
     .status.failed { color: var(--vscode-terminal-ansiRed); }
     .status.missing { color: var(--vscode-disabledForeground); }
     .module-actions { display: inline-flex; gap: 6px; }
-    .module-actions button { font-size: 11px; padding: 2px 6px; }
+    .module-actions button { font-size: 12px; padding: 2px 6px; min-width: 24px; }
     .module-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
@@ -102,13 +102,14 @@ export class DashboardViewProvider implements vscode.WebviewViewProvider {
         '<th data-target=\"' + target.name + '\" class=\"target-header\">' + target.name + '</th>',
       ).join('');
       const rows = state.modules.map((moduleState) => {
-        const configureLabel = moduleState.needsConfigure ? 'Configure' : 'Reconfigure';
+        const configureLabel = moduleState.needsConfigure ? 'Configure module (create out/)' : 'Reconfigure module (delete out/ then configure)';
         const configureAction = moduleState.needsConfigure ? 'configure' : 'reconfigure';
+        const configureIcon = moduleState.needsConfigure ? '🛠️' : '♻️';
         const runDisabled = moduleState.needsConfigure ? 'disabled' : '';
         const moduleActions = [
           '<span class=\"module-actions\">',
-          '<button data-configure=\"true\" data-action=\"' + configureAction + '\" data-module=\"' + moduleState.module.id + '\">' + configureLabel + '</button>',
-          '<button data-run-module=\"true\" data-module=\"' + moduleState.module.id + '\" ' + runDisabled + '>Run all</button>',
+          '<button title=\"' + configureLabel + '\" data-configure=\"true\" data-action=\"' + configureAction + '\" data-module=\"' + moduleState.module.id + '\">' + configureIcon + '</button>',
+          '<button title=\"Run all targets\" data-run-module=\"true\" data-module=\"' + moduleState.module.id + '\" ' + runDisabled + '>▶</button>',
           '</span>',
         ].join('');
         const cells = state.targets.map((target) => {
