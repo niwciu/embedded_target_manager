@@ -12,6 +12,7 @@ import { StateStore } from './state/stateStore';
 import { ModuleInfo } from './state/types';
 import { DashboardViewProvider, WebviewMessage } from './webview/dashboardView';
 import * as fs from 'fs/promises';
+import { createConfigureTask } from './tasks/taskFactory';
 
 interface RunnerSettings {
   modulesRoot: string;
@@ -38,13 +39,13 @@ export class DashboardController implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly watchers: vscode.FileSystemWatcher[] = [];
   private readonly options: DashboardControllerOptions;
-  private readonly configureOutput: vscode.OutputChannel;
+  private readonly configureTaskNames = new Map<string, string>();
+  private readonly configureResolvers = new Map<string, (exitCode?: number) => void>();
 
   constructor(private readonly context: vscode.ExtensionContext, options: DashboardControllerOptions) {
     this.options = options;
     const settings = this.getSettings();
     this.runner = new TargetRunner(settings.maxParallel);
-    this.configureOutput = vscode.window.createOutputChannel(`${options.title} Configure`);
     this.viewProvider = new DashboardViewProvider(
       context.extensionUri,
       (message) => this.handleWebviewMessage(message),
@@ -69,6 +70,7 @@ export class DashboardController implements vscode.Disposable {
         }
         this.pushState();
       }),
+      vscode.tasks.onDidEndTaskProcess((event) => this.handleConfigureTaskEnd(event)),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration('targetsRunner')) {
           this.applySettings();
@@ -313,23 +315,33 @@ export class DashboardController implements vscode.Disposable {
     }
 
     try {
-      const configureResult = skipConfigure
-        ? {
-            configured: false,
-            generator: await selectGenerator(settings.buildSystem, path.join(moduleInfo.path, 'out')),
-            output: 'Skipped configure (existing CMake cache).',
+      const generator = await selectGenerator(settings.buildSystem, path.join(moduleInfo.path, 'out'));
+      let configureOutput = 'Skipped configure (existing CMake cache).';
+      if (!skipConfigure) {
+        if (updateStatus) {
+          const taskName = `${moduleInfo.name}:configure`;
+          this.configureTaskNames.set(moduleInfo.id, taskName);
+          const exitCode = await this.runConfigureTask(moduleInfo, generator);
+          configureOutput = `See terminal: ${taskName}`;
+          if (exitCode && exitCode !== 0) {
+            throw new Error(`Configure failed with exit code ${exitCode}.`);
           }
-        : await ensureConfigured(moduleInfo.path, settings.buildSystem);
-      this.stateStore.setModuleGenerator(moduleInfo.id, configureResult.generator);
+        } else {
+          const configureResult = await ensureConfigured(moduleInfo.path, settings.buildSystem);
+          configureOutput = configureResult.output;
+        }
+      }
+      this.stateStore.setModuleGenerator(moduleInfo.id, generator);
       this.stateStore.setNeedsConfigure(moduleInfo.id, false);
       if (updateStatus) {
         this.stateStore.updateConfigure(moduleInfo.id, {
           status: 'success',
-          output: configureResult.output,
+          output: configureOutput,
           updatedAt: Date.now(),
         });
+        this.pushState();
       }
-      const targets = await detectTargets(moduleInfo.path, configureResult.generator);
+      const targets = await detectTargets(moduleInfo.path, generator);
       for (const target of this.stateStore.getState().targets) {
         this.stateStore.setAvailability(moduleInfo.id, target.name, targets.has(target.name));
       }
@@ -421,12 +433,35 @@ export class DashboardController implements vscode.Disposable {
     if (!moduleState) {
       return;
     }
-    const output = moduleState.configure?.output ?? 'No configure output available yet.';
-    this.configureOutput.clear();
-    this.configureOutput.appendLine(`${moduleState.module.name} - Configure Output`);
-    this.configureOutput.appendLine('');
-    this.configureOutput.appendLine(output);
-    this.configureOutput.show(true);
+    const taskName = this.configureTaskNames.get(moduleId) ?? `${moduleState.module.name}:configure`;
+    const terminal = vscode.window.terminals.find((item) => item.name === taskName);
+    if (terminal) {
+      terminal.show(true);
+      return;
+    }
+    vscode.window.showInformationMessage(
+      moduleState.configure?.output ?? 'No configure terminal found for this module yet.',
+    );
+  }
+
+  private async runConfigureTask(moduleInfo: ModuleInfo, generator: string): Promise<number | undefined> {
+    const task = createConfigureTask(moduleInfo, generator);
+    await vscode.tasks.executeTask(task);
+    return new Promise((resolve) => {
+      this.configureResolvers.set(moduleInfo.id, resolve);
+    });
+  }
+
+  private handleConfigureTaskEnd(event: vscode.TaskProcessEndEvent): void {
+    const definition = event.execution.task.definition as { type?: string; moduleId?: string };
+    if (definition?.type !== 'targetsRunnerConfigure' || !definition.moduleId) {
+      return;
+    }
+    const resolver = this.configureResolvers.get(definition.moduleId);
+    if (resolver) {
+      this.configureResolvers.delete(definition.moduleId);
+      resolver(event.exitCode);
+    }
   }
 
   private formatConfigureError(error: unknown): string {
