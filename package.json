@@ -4,6 +4,10 @@
   "description": "Dashboard to discover and run CMake custom targets across test modules.",
   "version": "0.1.0",
   "publisher": "embedded",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/niwciu/EMBEDDED_TARGET_RUNNER.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -98,6 +102,7 @@
     }
   },
   "scripts": {
+    "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
