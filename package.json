@@ -15,6 +15,7 @@
     "Other"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onView:targetsRunner.dashboard",
     "onCommand:targetsRunner.refresh",
     "onCommand:targetsRunner.runAll",
@@ -29,7 +30,8 @@
       "explorer": [
         {
           "id": "targetsRunner.dashboard",
-          "name": "Targets Dashboard"
+          "name": "Targets Dashboard",
+          "type": "webview"
         }
       ]
     },

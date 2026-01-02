@@ -8,6 +8,16 @@ export interface ConfigureResult {
   generator: CMakeGenerator;
 }
 
+export async function hasCMakeCache(modulePath: string): Promise<boolean> {
+  const cachePath = path.join(modulePath, 'out', 'CMakeCache.txt');
+  try {
+    const stat = await fs.stat(cachePath);
+    return stat.isFile();
+  } catch {
+    return false;
+  }
+}
+
 export async function ensureConfigured(modulePath: string, buildSystem: BuildSystem): Promise<ConfigureResult> {
   const outDir = path.join(modulePath, 'out');
   let exists = false;
@@ -19,7 +29,7 @@ export async function ensureConfigured(modulePath: string, buildSystem: BuildSys
   }
 
   const generator = await selectGenerator(buildSystem, outDir);
-  if (exists) {
+  if (exists && (await hasCMakeCache(modulePath))) {
     return { configured: false, generator };
   }
 

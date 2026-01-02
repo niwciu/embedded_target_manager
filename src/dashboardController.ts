@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ensureConfigured } from './cmake/configure';
+import { ensureConfigured, hasCMakeCache } from './cmake/configure';
 import { detectTargets } from './cmake/targets';
 import { BuildSystem } from './cmake/generator';
 import { discoverModules } from './discovery/modules';
@@ -135,6 +135,28 @@ export class DashboardController implements vscode.Disposable {
 
   private async refreshModule(moduleInfo: ModuleInfo, settings: RunnerSettings): Promise<void> {
     try {
+      if (settings.buildSystem === 'auto' && !(await hasCMakeCache(moduleInfo.path))) {
+        const selection = await vscode.window.showQuickPick(
+          [
+            { label: 'Ninja', description: 'Fast builds with Ninja' },
+            { label: 'Unix Makefiles', description: 'Use Makefiles' },
+          ],
+          {
+            placeHolder: `Select CMake generator for ${moduleInfo.name}`,
+          },
+        );
+        if (selection?.label === 'Ninja') {
+          settings = { ...settings, buildSystem: 'ninja' };
+        } else if (selection?.label === 'Unix Makefiles') {
+          settings = { ...settings, buildSystem: 'make' };
+        } else {
+          for (const target of this.stateStore.getState().targets) {
+            this.stateStore.setAvailability(moduleInfo.id, target.name, false);
+          }
+          return;
+        }
+      }
+
       const configureResult = await ensureConfigured(moduleInfo.path, settings.buildSystem);
       this.stateStore.setModuleGenerator(moduleInfo.id, configureResult.generator);
       const targets = await detectTargets(moduleInfo.path, configureResult.generator);
