@@ -8,7 +8,7 @@ export async function detectTargets(modulePath: string, generator: CMakeGenerato
   if (generator === 'Ninja') {
     const result = await runCommand('ninja', ['-C', 'out', '-t', 'targets'], modulePath);
     const output = `${result.stdout}\n${result.stderr}`;
-    collectTargetsFromLines(output, targets);
+    collectNinjaTargets(output, targets);
     return targets;
   }
 
@@ -39,6 +39,19 @@ function collectTargetsFromLines(output: string, targets: Set<string>): void {
     const token = trimmed.split(/\s+/)[0];
     if (token && !token.includes(':')) {
       targets.add(token);
+    }
+  }
+}
+
+function collectNinjaTargets(output: string, targets: Set<string>): void {
+  for (const line of output.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const targetName = trimmed.split(/[:\s]/)[0];
+    if (targetName) {
+      targets.add(targetName);
     }
   }
 }
