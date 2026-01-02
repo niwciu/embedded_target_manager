@@ -9,7 +9,6 @@ export type WebviewMessage =
   | { type: 'configureModule'; moduleId: string }
   | { type: 'reconfigureModule'; moduleId: string }
   | { type: 'configureAllModules' }
-  | { type: 'reconfigureAllModules' }
   | { type: 'refresh' }
   | { type: 'runAll' }
   | { type: 'rerunFailed' }
@@ -83,11 +82,10 @@ export class DashboardViewProvider implements vscode.WebviewViewProvider {
 <body>
   <div class="toolbar">
     <button data-action="refresh">Refresh</button>
+    <button data-action="configureAllModules">Configure All</button>
     <button data-action="runAll">Run All</button>
     <button data-action="rerunFailed">Rerun Failed</button>
     <button data-action="stopAll">Stop All</button>
-    <button data-action="configureAllModules">Configure All</button>
-    <button data-action="reconfigureAllModules">Reconfigure All</button>
   </div>
   <div id="table"></div>
   <script nonce="${nonce}">

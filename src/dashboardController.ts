@@ -103,16 +103,23 @@ export class DashboardController implements vscode.Disposable {
   }
 
   async configureAllModules(): Promise<void> {
-    for (const moduleState of this.stateStore.getState().modules) {
-      if (moduleState.needsConfigure) {
-        await this.configureModule(moduleState.module.id);
-      }
+    const modules = this.stateStore.getState().modules;
+    if (modules.length === 0) {
+      return;
     }
-  }
-
-  async reconfigureAllModules(): Promise<void> {
-    for (const moduleState of this.stateStore.getState().modules) {
-      await this.reconfigureModule(moduleState.module.id);
+    const settings = this.getSettings();
+    const selectedSettings = await this.pickGeneratorForAll(settings);
+    if (!selectedSettings) {
+      return;
+    }
+    for (const moduleState of modules) {
+      await this.removeOutDir(moduleState.module);
+      this.stateStore.setNeedsConfigure(moduleState.module.id, true);
+    }
+    this.pushState();
+    for (const moduleState of modules) {
+      await this.configureAndDetect(moduleState.module, selectedSettings, false);
+      this.pushState();
     }
   }
 
@@ -168,12 +175,7 @@ export class DashboardController implements vscode.Disposable {
     if (!moduleState) {
       return;
     }
-    const outDir = path.join(moduleState.module.path, 'out');
-    try {
-      await fs.rm(outDir, { recursive: true, force: true });
-    } catch (error) {
-      console.error(`Failed to remove out/ for ${moduleState.module.name}`, error);
-    }
+    await this.removeOutDir(moduleState.module);
     this.stateStore.setNeedsConfigure(moduleId, true);
     this.pushState();
     await this.configureModule(moduleId);
@@ -247,9 +249,6 @@ export class DashboardController implements vscode.Disposable {
       case 'configureAllModules':
         void this.configureAllModules();
         break;
-      case 'reconfigureAllModules':
-        void this.reconfigureAllModules();
-        break;
       case 'reveal':
         this.runner.reveal(message.moduleId, message.target);
         break;
@@ -297,6 +296,37 @@ export class DashboardController implements vscode.Disposable {
       return { ...settings, buildSystem: 'make' };
     }
     return null;
+  }
+
+  private async pickGeneratorForAll(settings: RunnerSettings): Promise<RunnerSettings | null> {
+    if (settings.buildSystem !== 'auto') {
+      return settings;
+    }
+    const selection = await vscode.window.showQuickPick(
+      [
+        { label: 'Ninja', description: 'Fast builds with Ninja' },
+        { label: 'Unix Makefiles', description: 'Use Makefiles' },
+      ],
+      {
+        placeHolder: 'Select CMake generator for all modules',
+      },
+    );
+    if (selection?.label === 'Ninja') {
+      return { ...settings, buildSystem: 'ninja' };
+    }
+    if (selection?.label === 'Unix Makefiles') {
+      return { ...settings, buildSystem: 'make' };
+    }
+    return null;
+  }
+
+  private async removeOutDir(module: ModuleInfo): Promise<void> {
+    const outDir = path.join(module.path, 'out');
+    try {
+      await fs.rm(outDir, { recursive: true, force: true });
+    } catch (error) {
+      console.error(`Failed to remove out/ for ${module.name}`, error);
+    }
   }
 
   private enqueueRunById(moduleId: string, target: string): void {
