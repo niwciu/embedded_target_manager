@@ -10,6 +10,11 @@ export async function detectTargets(modulePath: string, generator: CMakeGenerato
     const output = `${result.stdout}\n${result.stderr}`;
     collectNinjaTargets(output, targets);
     if (targets.size === 0) {
+      const allResult = await runCommand('ninja', ['-C', 'out', '-t', 'targets', 'all'], modulePath);
+      const allOutput = `${allResult.stdout}\n${allResult.stderr}`;
+      collectNinjaTargets(allOutput, targets);
+    }
+    if (targets.size === 0) {
       const fallback = await runCommand('cmake', ['--build', 'out', '--target', 'help'], modulePath);
       const fallbackOutput = `${fallback.stdout}\n${fallback.stderr}`;
       collectTargetsFromLines(fallbackOutput, targets);
@@ -42,8 +47,11 @@ function collectTargetsFromLines(output: string, targets: Set<string>): void {
       continue;
     }
     const token = trimmed.split(/\s+/)[0];
-    if (token && !token.includes(':')) {
-      targets.add(token);
+    if (token) {
+      const cleaned = token.includes(':') ? token.split(':')[0] : token;
+      if (cleaned) {
+        targets.add(cleaned);
+      }
     }
   }
 }
