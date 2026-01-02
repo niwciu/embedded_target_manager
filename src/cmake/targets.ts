@@ -9,11 +9,9 @@ export async function detectTargets(modulePath: string, generator: CMakeGenerato
     const result = await runCommand('ninja', ['-C', 'out', '-t', 'targets'], modulePath);
     const output = `${result.stdout}\n${result.stderr}`;
     collectNinjaTargets(output, targets);
-    if (targets.size === 0) {
-      const allResult = await runCommand('ninja', ['-C', 'out', '-t', 'targets', 'all'], modulePath);
-      const allOutput = `${allResult.stdout}\n${allResult.stderr}`;
-      collectNinjaTargets(allOutput, targets);
-    }
+    const allResult = await runCommand('ninja', ['-C', 'out', '-t', 'targets', 'all'], modulePath);
+    const allOutput = `${allResult.stdout}\n${allResult.stderr}`;
+    collectNinjaTargets(allOutput, targets);
     if (targets.size === 0) {
       const fallback = await runCommand('cmake', ['--build', 'out', '--target', 'help'], modulePath);
       const fallbackOutput = `${fallback.stdout}\n${fallback.stderr}`;
