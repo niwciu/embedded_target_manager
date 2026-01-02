@@ -29,7 +29,7 @@
   "main": "./out/extension.js",
   "contributes": {
     "views": {
-      "secondarySideBar": [
+      "explorer": [
         {
           "id": "targetsRunner.menu",
           "name": "EMBEDDED PROJECT MANAGER: TARGETS DASHBOARD"
