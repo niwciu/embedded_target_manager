@@ -99,6 +99,14 @@
           "default": 4,
           "minimum": 1,
           "description": "Maximum number of targets to run in parallel."
+        },
+        "targetsRunner.excludedModules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": ["unity", "cmock", "CMock", "Cmock", "Unity", "template"],
+          "description": "Module names to exclude from discovery."
         }
       }
     }

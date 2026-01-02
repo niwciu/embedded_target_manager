@@ -19,6 +19,7 @@ interface RunnerSettings {
   buildSystem: BuildSystem;
   makeJobs: string | number;
   maxParallel: number;
+  excludedModules: string[];
 }
 
 export class DashboardController implements vscode.Disposable {
@@ -84,7 +85,10 @@ export class DashboardController implements vscode.Disposable {
     const mergedTargets = this.mergeTargets(targetLists);
     this.stateStore.setTargets(mergedTargets);
 
-    const discovered = await Promise.all(folders.map((folder) => discoverModules(folder, settings.modulesRoot)));
+    const excluded = new Set(settings.excludedModules);
+    const discovered = await Promise.all(
+      folders.map((folder) => discoverModules(folder, settings.modulesRoot, excluded)),
+    );
     const modules = discovered.flat();
     this.stateStore.setModules(modules);
     this.pushState();
@@ -389,6 +393,14 @@ export class DashboardController implements vscode.Disposable {
       buildSystem: config.get<BuildSystem>('buildSystem', 'auto'),
       makeJobs: config.get<string | number>('makeJobs', 'auto'),
       maxParallel: config.get<number>('maxParallel', 4),
+      excludedModules: config.get<string[]>('excludedModules', [
+        'unity',
+        'cmock',
+        'CMock',
+        'Cmock',
+        'Unity',
+        'template',
+      ]),
     };
   }
 }

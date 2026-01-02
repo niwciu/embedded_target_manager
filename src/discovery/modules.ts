@@ -16,7 +16,11 @@ async function isModuleDirectory(dirPath: string): Promise<boolean> {
   }
 }
 
-export async function discoverModules(workspaceFolder: vscode.WorkspaceFolder, modulesRoot: string): Promise<ModuleInfo[]> {
+export async function discoverModules(
+  workspaceFolder: vscode.WorkspaceFolder,
+  modulesRoot: string,
+  excludedModules: Set<string>,
+): Promise<ModuleInfo[]> {
   const rootPath = path.join(workspaceFolder.uri.fsPath, modulesRoot);
   let entries: Dirent[] = [];
   try {
@@ -28,6 +32,9 @@ export async function discoverModules(workspaceFolder: vscode.WorkspaceFolder, m
   const modules: ModuleInfo[] = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) {
+      continue;
+    }
+    if (excludedModules.has(entry.name)) {
       continue;
     }
     const modulePath = path.join(rootPath, entry.name);
