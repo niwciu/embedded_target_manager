@@ -7,6 +7,7 @@ export type WebviewMessage =
   | { type: 'runTargetForAllModules'; target: string }
   | { type: 'reveal'; moduleId: string; target: string }
   | { type: 'configureModule'; moduleId: string }
+  | { type: 'reconfigureModule'; moduleId: string }
   | { type: 'refresh' }
   | { type: 'runAll' }
   | { type: 'rerunFailed' }
@@ -59,6 +60,7 @@ export class DashboardViewProvider implements vscode.WebviewViewProvider {
     th, td { padding: 4px; text-align: center; border-bottom: 1px solid var(--vscode-editorGroup-border); }
     th { position: sticky; top: 0; background: var(--vscode-editor-background); }
     td.module { text-align: left; cursor: pointer; }
+    td.actions { text-align: left; }
     .cell { display: flex; align-items: center; justify-content: center; gap: 6px; }
     .run { opacity: 1; font-size: 12px; cursor: pointer; }
     .status { font-weight: 600; cursor: pointer; }
@@ -67,8 +69,9 @@ export class DashboardViewProvider implements vscode.WebviewViewProvider {
     .status.success { color: var(--vscode-terminal-ansiGreen); }
     .status.failed { color: var(--vscode-terminal-ansiRed); }
     .status.missing { color: var(--vscode-disabledForeground); }
-    .module-actions { display: inline-flex; gap: 6px; margin-left: 8px; }
+    .module-actions { display: inline-flex; gap: 6px; }
     .module-actions button { font-size: 11px; padding: 2px 6px; }
+    .module-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -99,9 +102,15 @@ export class DashboardViewProvider implements vscode.WebviewViewProvider {
         '<th data-target=\"' + target.name + '\" class=\"target-header\">' + target.name + '</th>',
       ).join('');
       const rows = state.modules.map((moduleState) => {
-        const moduleActions = moduleState.needsConfigure
-          ? '<span class=\"module-actions\"><button data-configure=\"true\" data-module=\"' + moduleState.module.id + '\">Configure</button></span>'
-          : '<span class=\"module-actions\"><button data-run-module=\"true\" data-module=\"' + moduleState.module.id + '\">Run all</button></span>';
+        const configureLabel = moduleState.needsConfigure ? 'Configure' : 'Reconfigure';
+        const configureAction = moduleState.needsConfigure ? 'configure' : 'reconfigure';
+        const runDisabled = moduleState.needsConfigure ? 'disabled' : '';
+        const moduleActions = [
+          '<span class=\"module-actions\">',
+          '<button data-configure=\"true\" data-action=\"' + configureAction + '\" data-module=\"' + moduleState.module.id + '\">' + configureLabel + '</button>',
+          '<button data-run-module=\"true\" data-module=\"' + moduleState.module.id + '\" ' + runDisabled + '>Run all</button>',
+          '</span>',
+        ].join('');
         const cells = state.targets.map((target) => {
           const available = moduleState.availability[target.name];
           const run = moduleState.runs[target.name] || { status: 'idle' };
@@ -121,7 +130,8 @@ export class DashboardViewProvider implements vscode.WebviewViewProvider {
         }).join('');
         return [
           '<tr>',
-          '<td class=\"module\" data-module=\"' + moduleState.module.id + '\">' + moduleState.module.name + moduleActions + '</td>',
+          '<td class=\"module\" data-module=\"' + moduleState.module.id + '\">' + moduleState.module.name + '</td>',
+          '<td class=\"actions\">' + moduleActions + '</td>',
           cells,
           '</tr>',
         ].join('');
@@ -132,6 +142,7 @@ export class DashboardViewProvider implements vscode.WebviewViewProvider {
         '<thead>',
         '<tr>',
         '<th>Module</th>',
+        '<th>Module actions</th>',
         headerTargets,
         '</tr>',
         '</thead>',
@@ -150,7 +161,12 @@ export class DashboardViewProvider implements vscode.WebviewViewProvider {
       table.querySelectorAll('button[data-configure=\"true\"]').forEach((button) => {
         button.addEventListener('click', (event) => {
           event.stopPropagation();
-          vscode.postMessage({ type: 'configureModule', moduleId: button.dataset.module });
+          const action = button.dataset.action;
+          if (action === 'reconfigure') {
+            vscode.postMessage({ type: 'reconfigureModule', moduleId: button.dataset.module });
+          } else {
+            vscode.postMessage({ type: 'configureModule', moduleId: button.dataset.module });
+          }
         });
       });
 

@@ -11,6 +11,7 @@ import { TargetRunner } from './runner/targetRunner';
 import { StateStore } from './state/stateStore';
 import { ModuleInfo } from './state/types';
 import { DashboardViewProvider, WebviewMessage } from './webview/dashboardView';
+import * as fs from 'fs/promises';
 
 interface RunnerSettings {
   modulesRoot: string;
@@ -148,6 +149,22 @@ export class DashboardController implements vscode.Disposable {
     this.pushState();
   }
 
+  async reconfigureModule(moduleId: string): Promise<void> {
+    const moduleState = this.stateStore.getState().modules.find((state) => state.module.id === moduleId);
+    if (!moduleState) {
+      return;
+    }
+    const outDir = path.join(moduleState.module.path, 'out');
+    try {
+      await fs.rm(outDir, { recursive: true, force: true });
+    } catch (error) {
+      console.error(`Failed to remove out/ for ${moduleState.module.name}`, error);
+    }
+    this.stateStore.setNeedsConfigure(moduleId, true);
+    this.pushState();
+    await this.configureModule(moduleId);
+  }
+
   private async refreshModule(moduleInfo: ModuleInfo, settings: RunnerSettings): Promise<void> {
     try {
       if (!(await hasCMakeCache(moduleInfo.path))) {
@@ -209,6 +226,9 @@ export class DashboardController implements vscode.Disposable {
         break;
       case 'configureModule':
         void this.configureModule(message.moduleId);
+        break;
+      case 'reconfigureModule':
+        void this.reconfigureModule(message.moduleId);
         break;
       case 'reveal':
         this.runner.reveal(message.moduleId, message.target);
