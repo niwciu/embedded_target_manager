@@ -65,11 +65,11 @@ const MENU_STRUCTURE: MenuItemDefinition[] = [
     ],
   },
   {
-    label: 'CI Targets',
+    label: 'CI Checks',
     command: {
-      title: 'CI Targets',
+      title: 'CI Checks',
       command: 'targetsRunner.menuAction',
-      arguments: ['ciTargets'],
+      arguments: ['ciChecks'],
     },
   },
   {
