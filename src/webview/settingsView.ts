@@ -15,6 +15,7 @@ export type SettingsState = {
 };
 
 type SettingsMessage =
+  | { type: 'ready' }
   | { type: 'updateBuildSettings'; payload: Pick<SettingsState, 'buildSystem' | 'makeJobs' | 'maxParallel'> }
   | { type: 'updateDashboards'; payload: DashboardSettings[] };
 
@@ -35,6 +36,7 @@ export class SettingsViewProvider implements vscode.Disposable {
   show(): void {
     if (this.panel) {
       this.panel.reveal();
+      this.refresh();
       return;
     }
 
@@ -52,7 +54,6 @@ export class SettingsViewProvider implements vscode.Disposable {
     this.panel.onDidDispose(() => {
       this.panel = undefined;
     });
-    void this.panel.webview.postMessage({ type: 'state', payload: this.getState() });
   }
 
   refresh(): void {
@@ -267,6 +268,8 @@ export class SettingsViewProvider implements vscode.Disposable {
         applyState(event.data.payload);
       }
     });
+
+    vscode.postMessage({ type: 'ready' });
   </script>
 </body>
 </html>`;

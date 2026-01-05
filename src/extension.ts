@@ -55,6 +55,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     async (message) => {
       const config = vscode.workspace.getConfiguration('targetsRunner');
+      if (message.type === 'ready') {
+        settingsViewProvider.refresh();
+      }
       if (message.type === 'updateBuildSettings') {
         await config.update('buildSystem', message.payload.buildSystem, vscode.ConfigurationTarget.Workspace);
         await config.update('makeJobs', message.payload.makeJobs, vscode.ConfigurationTarget.Workspace);
