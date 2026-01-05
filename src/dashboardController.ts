@@ -169,6 +169,24 @@ export class DashboardController implements vscode.Disposable {
     this.runner.stopAll();
   }
 
+  clearAllTasks(): void {
+    this.runner.stopAll();
+    this.runner.clearAllTerminals();
+    const configureNames = new Set<string>();
+    for (const moduleState of this.stateStore.getState().modules) {
+      configureNames.add(`${moduleState.module.name}:configure`);
+    }
+    for (const taskName of this.configureTaskNames.values()) {
+      configureNames.add(taskName);
+    }
+    for (const terminal of vscode.window.terminals) {
+      if (configureNames.has(terminal.name)) {
+        terminal.dispose();
+      }
+    }
+    this.configureTaskNames.clear();
+  }
+
   runTargetForModule(moduleId: string): void {
     const moduleState = this.stateStore.getState().modules.find((state) => state.module.id === moduleId);
     if (!moduleState) {
@@ -275,6 +293,9 @@ export class DashboardController implements vscode.Disposable {
         break;
       case 'stopAll':
         this.stopAll();
+        break;
+      case 'clearAllTasks':
+        this.clearAllTasks();
         break;
       case 'runTarget':
         this.enqueueRunById(message.moduleId, message.target);
