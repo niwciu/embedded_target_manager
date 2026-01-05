@@ -54,6 +54,7 @@ export class SettingsViewProvider implements vscode.Disposable {
     this.panel.onDidDispose(() => {
       this.panel = undefined;
     });
+    this.refresh();
   }
 
   refresh(): void {
