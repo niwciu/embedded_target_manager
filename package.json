@@ -42,7 +42,7 @@
       "targetsRunner": [
         {
           "id": "targetsRunner.menu",
-          "name": ""
+          "name": "EMBEDDED TARGETS MANAGER"
         }
       ]
     },
@@ -153,10 +153,11 @@
                 "moduleRoots": {
                   "type": "array",
                   "minItems": 1,
+                  "maxItems": 2,
                   "items": {
                     "type": "string"
                   },
-                  "description": "Module root paths relative to the workspace."
+                  "description": "One or two module root paths relative to the workspace."
                 },
                 "excludedModules": {
                   "type": "array",

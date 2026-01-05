@@ -21,7 +21,7 @@ const normalizeDashboards = (dashboards: DashboardDefinition[]): DashboardDefini
     .filter((dashboard) => typeof dashboard.name === 'string' && dashboard.name.trim().length > 0)
     .map((dashboard) => ({
       name: dashboard.name.trim(),
-      moduleRoots: Array.isArray(dashboard.moduleRoots) ? dashboard.moduleRoots.filter(Boolean) : [],
+      moduleRoots: Array.isArray(dashboard.moduleRoots) ? dashboard.moduleRoots.filter(Boolean).slice(0, 2) : [],
       excludedModules: Array.isArray(dashboard.excludedModules)
         ? dashboard.excludedModules.filter(Boolean)
         : DEFAULT_DASHBOARDS[0].excludedModules,
