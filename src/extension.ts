@@ -68,7 +68,7 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   );
 
-  const rebuildDashboards = () => {
+  const updateDashboardControllers = () => {
     for (const controller of dashboardControllers) {
       controller.dispose();
     }
@@ -85,26 +85,7 @@ export function activate(context: vscode.ExtensionContext): void {
     menuViewProvider.setDashboards(dashboardControllers.map((controller) => controller.name));
   };
 
-  rebuildDashboards();
-
-  const rebuildDashboards = () => {
-    for (const controller of dashboardControllers) {
-      controller.dispose();
-    }
-    dashboardControllers = getDashboards().map(
-      (dashboard) =>
-        new DashboardController(context, {
-          ...dashboard,
-          moduleLabel: 'Module Name',
-          actionsLabel: 'Module Actions',
-          title: dashboard.name,
-        }),
-    );
-    activeController = dashboardControllers[0];
-    menuViewProvider.setDashboards(dashboardControllers.map((controller) => controller.name));
-  };
-
-  rebuildDashboards();
+  updateDashboardControllers();
 
   context.subscriptions.push(
     menuViewProvider,
@@ -145,7 +126,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('targetsRunner.openSettings', () => settingsViewProvider.show()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration('targetsRunner.dashboards')) {
-        rebuildDashboards();
+        updateDashboardControllers();
       }
       if (
         event.affectsConfiguration('targetsRunner.buildSystem') ||
