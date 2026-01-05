@@ -66,6 +66,19 @@ export class TargetRunner implements vscode.Disposable {
     this.pending.length = 0;
   }
 
+  clearAllTerminals(): void {
+    const names = new Set(this.taskNames.values());
+    if (names.size === 0) {
+      return;
+    }
+    for (const terminal of vscode.window.terminals) {
+      if (names.has(terminal.name)) {
+        terminal.dispose();
+      }
+    }
+    this.taskNames.clear();
+  }
+
   dispose(): void {
     for (const disposable of this.disposables) {
       disposable.dispose();
