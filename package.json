@@ -153,11 +153,10 @@
                 "moduleRoots": {
                   "type": "array",
                   "minItems": 1,
-                  "maxItems": 2,
                   "items": {
                     "type": "string"
                   },
-                  "description": "One or two module root paths relative to the workspace."
+                  "description": "Module root paths relative to the workspace."
                 },
                 "excludedModules": {
                   "type": "array",
