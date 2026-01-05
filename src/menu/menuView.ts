@@ -6,21 +6,36 @@ type MenuItemDefinition = {
   command?: vscode.Command;
 };
 
-const MENU_STRUCTURE: MenuItemDefinition[] = [
+const MENU_TITLE = 'Embedded Targets Manager';
+
+const createMenuStructure = (dashboards: string[]): MenuItemDefinition[] => [
   {
-    label: 'Targets Dashboard Manager',
-    command: {
-      title: 'Targets Dashboard Manager',
-      command: 'targetsRunner.openDashboard',
-    },
-  },
-  {
-    label: 'Targets Manager Options',
-    command: {
-      title: 'Targets Manager Options',
-      command: 'workbench.action.openSettings',
-      arguments: ['@ext:embedded.embedded-target-runner'],
-    },
+    label: MENU_TITLE,
+    children: [
+      {
+        label: 'Options',
+        command: {
+          title: 'Options',
+          command: 'workbench.action.openSettings',
+          arguments: ['@ext:embedded.embedded-target-runner'],
+        },
+      },
+      {
+        label: 'Targets Dashboard Manager',
+        command: {
+          title: 'Targets Dashboard Manager',
+          command: 'targetsRunner.openDashboard',
+        },
+      },
+      ...dashboards.map((name) => ({
+        label: name,
+        command: {
+          title: name,
+          command: 'targetsRunner.openDashboard',
+          arguments: [name],
+        },
+      })),
+    ],
   },
 ];
 
@@ -37,9 +52,15 @@ class MenuTreeItem extends vscode.TreeItem {
 export class MenuViewProvider implements vscode.TreeDataProvider<MenuItemDefinition>, vscode.Disposable {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<MenuItemDefinition | undefined>();
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
+  private dashboards: string[] = [];
 
   dispose(): void {
     this.onDidChangeTreeDataEmitter.dispose();
+  }
+
+  setDashboards(dashboards: string[]): void {
+    this.dashboards = dashboards;
+    this.refresh();
   }
 
   getTreeItem(element: MenuItemDefinition): vscode.TreeItem {
@@ -48,7 +69,7 @@ export class MenuViewProvider implements vscode.TreeDataProvider<MenuItemDefinit
 
   getChildren(element?: MenuItemDefinition): MenuItemDefinition[] {
     if (!element) {
-      return MENU_STRUCTURE;
+      return createMenuStructure(this.dashboards);
     }
     return element.children ?? [];
   }
