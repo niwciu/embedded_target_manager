@@ -19,6 +19,7 @@ export function createTargetTask(
   target: string,
   useNinja: boolean,
   makeJobs: string | number,
+  logPath?: string,
 ): vscode.Task {
   const cwd = path.join(moduleInfo.path, 'out');
   const command = useNinja ? 'ninja' : 'make';
@@ -31,7 +32,13 @@ export function createTargetTask(
   }
   args.push(target);
 
-  const execution = new vscode.ShellExecution(command, args, { cwd });
+  const execution = logPath
+    ? new vscode.ShellExecution(
+        'bash',
+        ['-lc', buildLoggedCommand(command, args, logPath)],
+        { cwd },
+      )
+    : new vscode.ShellExecution(command, args, { cwd });
 
   const definition: TargetTaskDefinition = {
     type: 'targetsManager',
@@ -58,6 +65,16 @@ export function createTargetTask(
   };
 
   return task;
+}
+
+function buildLoggedCommand(command: string, args: string[], logPath: string): string {
+  const parts = [command, ...args].map(escapeShellArg).join(' ');
+  const logFile = escapeShellArg(logPath);
+  return `set -o pipefail; ${parts} 2>&1 | tee ${logFile}`;
+}
+
+function escapeShellArg(value: string): string {
+  return `"${value.replace(/["\\$`]/g, '\\$&')}"`;
 }
 
 export function createConfigureTask(moduleInfo: ModuleInfo, generator: string): vscode.Task {
