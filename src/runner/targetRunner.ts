@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as fs from 'fs/promises';
 import * as vscode from 'vscode';
 import { ModuleInfo } from '../state/types';
 import { createTargetTask } from '../tasks/taskFactory';
@@ -22,11 +23,7 @@ export class TargetRunner implements vscode.Disposable {
   private readonly pending: RunRequest[] = [];
   private readonly running = new Map<string, vscode.TaskExecution>();
   private readonly taskNames = new Map<string, string>();
-  private readonly modulePaths = new Map<string, string>();
-  private readonly runDiagnostics = new Map<
-    string,
-    { warnings: boolean; errors: boolean; modulePath: string; disposable: vscode.Disposable }
-  >();
+  private readonly runLogs = new Map<string, string>();
   private readonly updates = new vscode.EventEmitter<RunUpdate>();
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -96,10 +93,10 @@ export class TargetRunner implements vscode.Disposable {
 
   private async execute(request: RunRequest): Promise<void> {
     const key = this.getKey(request.module.id, request.target);
-    const task = createTargetTask(request.module, request.target, request.useNinja, request.makeJobs);
+    const logPath = await this.createLogPath(request.module.path, key);
+    const task = createTargetTask(request.module, request.target, request.useNinja, request.makeJobs, logPath);
     this.updates.fire({ moduleId: request.module.id, target: request.target, status: 'running' });
-    this.modulePaths.set(key, request.module.path);
-    this.runDiagnostics.set(key, this.createDiagnosticsTracker(request.module.path));
+    this.runLogs.set(key, logPath);
 
     const execution = await vscode.tasks.executeTask(task);
     this.running.set(key, execution);
@@ -114,21 +111,18 @@ export class TargetRunner implements vscode.Disposable {
     this.running.delete(key);
     let status: RunUpdate['status'] = event.exitCode === 0 ? 'success' : 'failed';
     if (status === 'success') {
-      const modulePath = this.modulePaths.get(key);
-      const tracker = this.runDiagnostics.get(key);
-      if (modulePath && tracker) {
-        await this.waitForDiagnostics(modulePath, 750);
-        if (tracker.errors) {
+      const logPath = this.runLogs.get(key);
+      if (logPath) {
+        const logStatus = await this.readLogStatus(logPath);
+        if (logStatus === 'failed') {
           status = 'failed';
-        } else if (tracker.warnings) {
+        } else if (logStatus === 'warning') {
           status = 'warning';
         }
       }
     }
     this.updates.fire({ moduleId: definition.moduleId, target: definition.target, status, exitCode: event.exitCode });
-    this.runDiagnostics.get(key)?.disposable.dispose();
-    this.runDiagnostics.delete(key);
-    this.modulePaths.delete(key);
+    this.runLogs.delete(key);
     this.kick();
   }
 
@@ -140,68 +134,26 @@ export class TargetRunner implements vscode.Disposable {
     return `${moduleName}:${target}`;
   }
 
-  private waitForDiagnostics(modulePath: string, timeoutMs: number): Promise<void> {
-    const moduleRoot = path.resolve(modulePath);
-    const modulePrefix = moduleRoot.endsWith(path.sep) ? moduleRoot : moduleRoot + path.sep;
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        disposable.dispose();
-        resolve();
-      }, timeoutMs);
-      const disposable = vscode.languages.onDidChangeDiagnostics((event) => {
-        const touched = event.uris.some((uri) => {
-          const fsPath = uri.fsPath;
-          if (!fsPath) {
-            return false;
-          }
-          const normalized = path.resolve(fsPath);
-          return normalized === moduleRoot || normalized.startsWith(modulePrefix);
-        });
-        if (touched) {
-          clearTimeout(timeout);
-          disposable.dispose();
-          resolve();
-        }
-      });
-    });
+  private async createLogPath(modulePath: string, key: string): Promise<string> {
+    const logDir = path.join(modulePath, '.targetsManager', 'logs');
+    await fs.mkdir(logDir, { recursive: true });
+    const safeKey = key.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const timestamp = Date.now();
+    return path.join(logDir, `${safeKey}-${timestamp}.log`);
   }
 
-  private createDiagnosticsTracker(modulePath: string): {
-    warnings: boolean;
-    errors: boolean;
-    modulePath: string;
-    disposable: vscode.Disposable;
-  } {
-    const moduleRoot = path.resolve(modulePath);
-    const modulePrefix = moduleRoot.endsWith(path.sep) ? moduleRoot : moduleRoot + path.sep;
-    const tracker = {
-      warnings: false,
-      errors: false,
-      modulePath,
-      disposable: vscode.languages.onDidChangeDiagnostics((event) => {
-        const relevant = event.uris.filter((uri) => {
-          const fsPath = uri.fsPath;
-          if (!fsPath) {
-            return false;
-          }
-          const normalized = path.resolve(fsPath);
-          return normalized === moduleRoot || normalized.startsWith(modulePrefix);
-        });
-        if (relevant.length === 0) {
-          return;
-        }
-        for (const uri of relevant) {
-          const diagnostics = vscode.languages.getDiagnostics(uri);
-          for (const diagnostic of diagnostics) {
-            if (diagnostic.severity === vscode.DiagnosticSeverity.Error) {
-              tracker.errors = true;
-            } else if (diagnostic.severity === vscode.DiagnosticSeverity.Warning) {
-              tracker.warnings = true;
-            }
-          }
-        }
-      }),
-    };
-    return tracker;
+  private async readLogStatus(logPath: string): Promise<RunUpdate['status'] | undefined> {
+    try {
+      const output = await fs.readFile(logPath, 'utf8');
+      if (/\berror\s*:/i.test(output)) {
+        return 'failed';
+      }
+      if (/\bwarning\s*:/i.test(output)) {
+        return 'warning';
+      }
+      return 'success';
+    } catch {
+      return undefined;
+    }
   }
 }
