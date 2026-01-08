@@ -23,6 +23,7 @@ export class TargetRunner implements vscode.Disposable {
   private readonly running = new Map<string, vscode.TaskExecution>();
   private readonly taskNames = new Map<string, string>();
   private readonly modulePaths = new Map<string, string>();
+  private readonly runStartedAt = new Map<string, number>();
   private readonly updates = new vscode.EventEmitter<RunUpdate>();
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -97,6 +98,7 @@ export class TargetRunner implements vscode.Disposable {
     const task = createTargetTask(request.module, request.target, request.useNinja, request.makeJobs);
     this.updates.fire({ moduleId: request.module.id, target: request.target, status: 'running' });
     this.modulePaths.set(key, request.module.path);
+    this.runStartedAt.set(key, Date.now());
 
     const execution = await vscode.tasks.executeTask(task);
     this.running.set(key, execution);
@@ -110,9 +112,10 @@ export class TargetRunner implements vscode.Disposable {
     const key = this.getKey(definition.moduleId, definition.target);
     this.running.delete(key);
     const modulePath = this.modulePaths.get(key);
+    const startedAt = this.runStartedAt.get(key) ?? Date.now();
     let status: RunUpdate['status'] = event.exitCode === 0 ? 'success' : 'failed';
     if (status === 'success' && modulePath) {
-      status = await this.resolveDiagnosticsStatus(modulePath);
+      status = await this.resolveDiagnosticsStatus(modulePath, startedAt);
     }
     this.updates.fire({
       moduleId: definition.moduleId,
@@ -121,6 +124,7 @@ export class TargetRunner implements vscode.Disposable {
       exitCode: event.exitCode,
     });
     this.modulePaths.delete(key);
+    this.runStartedAt.delete(key);
     this.kick();
   }
 
@@ -157,8 +161,8 @@ export class TargetRunner implements vscode.Disposable {
     return { warnings, errors };
   }
 
-  private async resolveDiagnosticsStatus(modulePath: string): Promise<RunUpdate['status']> {
-    await this.waitForDiagnosticsIdle(modulePath);
+  private async resolveDiagnosticsStatus(modulePath: string, startedAt: number): Promise<RunUpdate['status']> {
+    await this.waitForDiagnosticsSettled(modulePath, startedAt);
     const current = this.getDiagnosticsCounts(modulePath);
     if (current.errors > 0) {
       return 'failed';
@@ -169,14 +173,17 @@ export class TargetRunner implements vscode.Disposable {
     return 'success';
   }
 
-  private waitForDiagnosticsIdle(modulePath: string): Promise<void> {
+  private waitForDiagnosticsSettled(modulePath: string, startedAt: number): Promise<void> {
     const moduleRoot = path.resolve(modulePath);
     const modulePrefix = moduleRoot.endsWith(path.sep) ? moduleRoot : moduleRoot + path.sep;
-    const quietWindowMs = 250;
-    const maxWaitMs = 2000;
+    const initialWaitMs = 1000;
+    const quietWindowMs = 300;
+    const maxWaitMs = 5000;
     let quietTimeout: NodeJS.Timeout | undefined;
     let maxTimeout: NodeJS.Timeout | undefined;
+    let initialTimeout: NodeJS.Timeout | undefined;
     let resolvePromise: () => void;
+    let sawChange = false;
     const promise = new Promise<void>((resolve) => {
       resolvePromise = resolve;
     });
@@ -186,6 +193,9 @@ export class TargetRunner implements vscode.Disposable {
       }
       if (maxTimeout) {
         clearTimeout(maxTimeout);
+      }
+      if (initialTimeout) {
+        clearTimeout(initialTimeout);
       }
       disposable.dispose();
       resolvePromise();
@@ -206,13 +216,20 @@ export class TargetRunner implements vscode.Disposable {
         }
         const normalized = path.resolve(fsPath);
         if (normalized === moduleRoot || normalized.startsWith(modulePrefix)) {
-          bumpQuietTimer();
+          sawChange = true;
+          if (Date.now() >= startedAt) {
+            bumpQuietTimer();
+          }
           break;
         }
       }
     });
     this.disposables.push(disposable);
-    bumpQuietTimer();
+    initialTimeout = setTimeout(() => {
+      if (!sawChange) {
+        cleanup();
+      }
+    }, initialWaitMs);
     maxTimeout = setTimeout(() => {
       cleanup();
     }, maxWaitMs);
