@@ -143,17 +143,29 @@ export class TargetRunner implements vscode.Disposable {
   }
 
   private async readLogStatus(logPath: string): Promise<RunUpdate['status'] | undefined> {
-    try {
-      const output = await fs.readFile(logPath, 'utf8');
-      if (/\berror\s*:/i.test(output)) {
-        return 'failed';
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      try {
+        const stat = await fs.stat(logPath);
+        if (stat.size === 0) {
+          await this.delay(100);
+          continue;
+        }
+        const output = await fs.readFile(logPath, 'utf8');
+        if (/\berror\s*:/i.test(output)) {
+          return 'failed';
+        }
+        if (/\bwarning\s*:/i.test(output)) {
+          return 'warning';
+        }
+        return 'success';
+      } catch {
+        await this.delay(100);
       }
-      if (/\bwarning\s*:/i.test(output)) {
-        return 'warning';
-      }
-      return 'success';
-    } catch {
-      return undefined;
     }
+    return undefined;
+  }
+
+  private delay(durationMs: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, durationMs));
   }
 }
