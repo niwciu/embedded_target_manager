@@ -100,7 +100,7 @@ export class TargetRunner implements vscode.Disposable {
     this.running.set(key, execution);
   }
 
-  private handleTaskEnd(event: vscode.TaskProcessEndEvent): void {
+  private async handleTaskEnd(event: vscode.TaskProcessEndEvent): Promise<void> {
     const definition = event.execution.task.definition as { type?: string; moduleId?: string; target?: string };
     if (definition?.type !== 'targetsManager' || !definition.moduleId || !definition.target) {
       return;
@@ -111,6 +111,7 @@ export class TargetRunner implements vscode.Disposable {
     if (status === 'success') {
       const modulePath = this.modulePaths.get(key);
       if (modulePath) {
+        await this.waitForDiagnostics(modulePath, 750);
         const current = this.getDiagnosticsCounts(modulePath);
         if (current.errors > 0) {
           status = 'failed';
@@ -155,5 +156,31 @@ export class TargetRunner implements vscode.Disposable {
       }
     }
     return { warnings, errors };
+  }
+
+  private waitForDiagnostics(modulePath: string, timeoutMs: number): Promise<void> {
+    const moduleRoot = path.resolve(modulePath);
+    const modulePrefix = moduleRoot.endsWith(path.sep) ? moduleRoot : moduleRoot + path.sep;
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        disposable.dispose();
+        resolve();
+      }, timeoutMs);
+      const disposable = vscode.languages.onDidChangeDiagnostics((event) => {
+        const touched = event.uris.some((uri) => {
+          const fsPath = uri.fsPath;
+          if (!fsPath) {
+            return false;
+          }
+          const normalized = path.resolve(fsPath);
+          return normalized === moduleRoot || normalized.startsWith(modulePrefix);
+        });
+        if (touched) {
+          clearTimeout(timeout);
+          disposable.dispose();
+          resolve();
+        }
+      });
+    });
   }
 }
