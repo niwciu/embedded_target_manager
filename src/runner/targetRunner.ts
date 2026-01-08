@@ -22,7 +22,6 @@ export class TargetRunner implements vscode.Disposable {
   private readonly pending: RunRequest[] = [];
   private readonly running = new Map<string, vscode.TaskExecution>();
   private readonly taskNames = new Map<string, string>();
-  private readonly diagnosticsBaseline = new Map<string, { warnings: number; errors: number }>();
   private readonly modulePaths = new Map<string, string>();
   private readonly updates = new vscode.EventEmitter<RunUpdate>();
   private readonly disposables: vscode.Disposable[] = [];
@@ -95,7 +94,6 @@ export class TargetRunner implements vscode.Disposable {
     const key = this.getKey(request.module.id, request.target);
     const task = createTargetTask(request.module, request.target, request.useNinja, request.makeJobs);
     this.updates.fire({ moduleId: request.module.id, target: request.target, status: 'running' });
-    this.diagnosticsBaseline.set(key, this.getDiagnosticsCounts(request.module.path));
     this.modulePaths.set(key, request.module.path);
 
     const execution = await vscode.tasks.executeTask(task);
@@ -113,19 +111,15 @@ export class TargetRunner implements vscode.Disposable {
     if (status === 'success') {
       const modulePath = this.modulePaths.get(key);
       if (modulePath) {
-        const baseline = this.diagnosticsBaseline.get(key) ?? { warnings: 0, errors: 0 };
         const current = this.getDiagnosticsCounts(modulePath);
-        const warningDelta = current.warnings - baseline.warnings;
-        const errorDelta = current.errors - baseline.errors;
-        if (errorDelta > 0) {
+        if (current.errors > 0) {
           status = 'failed';
-        } else if (warningDelta > 0) {
+        } else if (current.warnings > 0) {
           status = 'warning';
         }
       }
     }
     this.updates.fire({ moduleId: definition.moduleId, target: definition.target, status, exitCode: event.exitCode });
-    this.diagnosticsBaseline.delete(key);
     this.modulePaths.delete(key);
     this.kick();
   }
