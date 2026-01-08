@@ -1,3 +1,5 @@
+import * as path from 'path';
+import * as fs from 'fs/promises';
 import * as vscode from 'vscode';
 import { ModuleInfo } from '../state/types';
 import { createTargetTask } from '../tasks/taskFactory';
@@ -6,7 +8,7 @@ import { clearRegisteredTaskTerminals } from '../tasks/taskRegistry';
 export interface RunUpdate {
   moduleId: string;
   target: string;
-  status: 'running' | 'success' | 'failed';
+  status: 'running' | 'success' | 'warning' | 'failed';
   exitCode?: number;
 }
 
@@ -21,6 +23,7 @@ export class TargetRunner implements vscode.Disposable {
   private readonly pending: RunRequest[] = [];
   private readonly running = new Map<string, vscode.TaskExecution>();
   private readonly taskNames = new Map<string, string>();
+  private readonly runLogs = new Map<string, string>();
   private readonly updates = new vscode.EventEmitter<RunUpdate>();
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -90,22 +93,36 @@ export class TargetRunner implements vscode.Disposable {
 
   private async execute(request: RunRequest): Promise<void> {
     const key = this.getKey(request.module.id, request.target);
-    const task = createTargetTask(request.module, request.target, request.useNinja, request.makeJobs);
+    const logPath = await this.createLogPath(request.module.path, key);
+    const task = createTargetTask(request.module, request.target, request.useNinja, request.makeJobs, logPath);
     this.updates.fire({ moduleId: request.module.id, target: request.target, status: 'running' });
+    this.runLogs.set(key, logPath);
 
     const execution = await vscode.tasks.executeTask(task);
     this.running.set(key, execution);
   }
 
-  private handleTaskEnd(event: vscode.TaskProcessEndEvent): void {
+  private async handleTaskEnd(event: vscode.TaskProcessEndEvent): Promise<void> {
     const definition = event.execution.task.definition as { type?: string; moduleId?: string; target?: string };
     if (definition?.type !== 'targetsManager' || !definition.moduleId || !definition.target) {
       return;
     }
     const key = this.getKey(definition.moduleId, definition.target);
     this.running.delete(key);
-    const status: RunUpdate['status'] = event.exitCode === 0 ? 'success' : 'failed';
+    let status: RunUpdate['status'] = event.exitCode === 0 ? 'success' : 'failed';
+    if (status === 'success') {
+      const logPath = this.runLogs.get(key);
+      if (logPath) {
+        const logStatus = await this.readLogStatus(logPath);
+        if (logStatus === 'failed') {
+          status = 'failed';
+        } else if (logStatus === 'warning') {
+          status = 'warning';
+        }
+      }
+    }
     this.updates.fire({ moduleId: definition.moduleId, target: definition.target, status, exitCode: event.exitCode });
+    this.runLogs.delete(key);
     this.kick();
   }
 
@@ -115,5 +132,40 @@ export class TargetRunner implements vscode.Disposable {
 
   private getTaskName(moduleName: string, target: string): string {
     return `${moduleName}:${target}`;
+  }
+
+  private async createLogPath(modulePath: string, key: string): Promise<string> {
+    const logDir = path.join(modulePath, '.targetsManager', 'logs');
+    await fs.mkdir(logDir, { recursive: true });
+    const safeKey = key.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const timestamp = Date.now();
+    return path.join(logDir, `${safeKey}-${timestamp}.log`);
+  }
+
+  private async readLogStatus(logPath: string): Promise<RunUpdate['status'] | undefined> {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      try {
+        const stat = await fs.stat(logPath);
+        if (stat.size === 0) {
+          await this.delay(100);
+          continue;
+        }
+        const output = await fs.readFile(logPath, 'utf8');
+        if (/\berror\s*:/i.test(output)) {
+          return 'failed';
+        }
+        if (/\bwarning\s*:/i.test(output)) {
+          return 'warning';
+        }
+        return 'success';
+      } catch {
+        await this.delay(100);
+      }
+    }
+    return undefined;
+  }
+
+  private delay(durationMs: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, durationMs));
   }
 }
