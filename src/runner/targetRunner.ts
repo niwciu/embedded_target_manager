@@ -16,6 +16,7 @@ export interface RunRequest {
   target: string;
   useNinja: boolean;
   makeJobs: string | number;
+  autoCloseOnSuccess: boolean;
 }
 
 export class TargetRunner implements vscode.Disposable {
@@ -24,6 +25,7 @@ export class TargetRunner implements vscode.Disposable {
   private readonly taskNames = new Map<string, string>();
   private readonly modulePaths = new Map<string, string>();
   private readonly runStartedAt = new Map<string, number>();
+  private readonly autoCloseOnSuccess = new Map<string, boolean>();
   private readonly updates = new vscode.EventEmitter<RunUpdate>();
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -51,18 +53,9 @@ export class TargetRunner implements vscode.Disposable {
       return;
     }
     this.taskNames.set(key, this.getTaskName(request.module.name, request.target));
+    this.autoCloseOnSuccess.set(key, request.autoCloseOnSuccess);
     this.pending.push(request);
     this.kick();
-  }
-
-  reveal(moduleId: string, target: string): void {
-    const key = this.getKey(moduleId, target);
-    const taskName = this.taskNames.get(key);
-    if (!taskName) {
-      return;
-    }
-    const terminal = vscode.window.terminals.find((item) => item.name === taskName);
-    terminal?.show(true);
   }
 
   stopAll(): void {
@@ -117,6 +110,9 @@ export class TargetRunner implements vscode.Disposable {
     if (status === 'success' && modulePath) {
       status = await this.resolveDiagnosticsStatus(modulePath, startedAt);
     }
+    if (status === 'success' && this.autoCloseOnSuccess.get(key)) {
+      this.closeTaskTerminal(key);
+    }
     this.updates.fire({
       moduleId: definition.moduleId,
       target: definition.target,
@@ -125,6 +121,7 @@ export class TargetRunner implements vscode.Disposable {
     });
     this.modulePaths.delete(key);
     this.runStartedAt.delete(key);
+    this.autoCloseOnSuccess.delete(key);
     this.kick();
   }
 
@@ -134,6 +131,15 @@ export class TargetRunner implements vscode.Disposable {
 
   private getTaskName(moduleName: string, target: string): string {
     return `${moduleName}:${target}`;
+  }
+
+  private closeTaskTerminal(key: string): void {
+    const taskName = this.taskNames.get(key);
+    if (!taskName) {
+      return;
+    }
+    const terminal = vscode.window.terminals.find((item) => item.name === taskName);
+    terminal?.dispose();
   }
 
   private getDiagnosticsCounts(modulePath: string): { warnings: number; errors: number } {
@@ -176,14 +182,11 @@ export class TargetRunner implements vscode.Disposable {
   private waitForDiagnosticsSettled(modulePath: string, startedAt: number): Promise<void> {
     const moduleRoot = path.resolve(modulePath);
     const modulePrefix = moduleRoot.endsWith(path.sep) ? moduleRoot : moduleRoot + path.sep;
-    const initialWaitMs = 1000;
     const quietWindowMs = 300;
     const maxWaitMs = 5000;
     let quietTimeout: NodeJS.Timeout | undefined;
     let maxTimeout: NodeJS.Timeout | undefined;
-    let initialTimeout: NodeJS.Timeout | undefined;
     let resolvePromise: () => void;
-    let sawChange = false;
     const promise = new Promise<void>((resolve) => {
       resolvePromise = resolve;
     });
@@ -194,9 +197,6 @@ export class TargetRunner implements vscode.Disposable {
       }
       if (maxTimeout) {
         clearTimeout(maxTimeout);
-      }
-      if (initialTimeout) {
-        clearTimeout(initialTimeout);
       }
       if (disposableIndex !== -1) {
         this.disposables.splice(disposableIndex, 1);
@@ -221,7 +221,6 @@ export class TargetRunner implements vscode.Disposable {
         }
         const normalized = path.resolve(fsPath);
         if (normalized === moduleRoot || normalized.startsWith(modulePrefix)) {
-          sawChange = true;
           if (Date.now() >= startedAt) {
             bumpQuietTimer();
           }
@@ -231,11 +230,6 @@ export class TargetRunner implements vscode.Disposable {
     });
     this.disposables.push(disposable);
     disposableIndex = this.disposables.length - 1;
-    initialTimeout = setTimeout(() => {
-      if (!sawChange) {
-        cleanup();
-      }
-    }, initialWaitMs);
     maxTimeout = setTimeout(() => {
       cleanup();
     }, maxWaitMs);
