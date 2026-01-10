@@ -91,6 +91,7 @@ export class DashboardViewProvider implements vscode.Disposable {
     .configure-status { font-weight: 600; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; width: 1.4em; }
     .status.idle { color: var(--vscode-descriptionForeground); }
     .status.running { color: var(--vscode-terminal-ansiYellow); }
+    .status.queued { color: var(--vscode-terminal-ansiYellow); }
     .status.success { color: var(--vscode-terminal-ansiGreen); }
     .status.warning { color: var(--vscode-terminal-ansiYellow); }
     .status.failed { color: var(--vscode-terminal-ansiRed); }
@@ -174,7 +175,7 @@ export class DashboardViewProvider implements vscode.Disposable {
           }
           const statusClass = run.status;
           const icon =
-            run.status === 'running'
+            run.status === 'running' || run.status === 'queued'
               ? '⏳'
               : run.status === 'success'
                 ? '✓'
