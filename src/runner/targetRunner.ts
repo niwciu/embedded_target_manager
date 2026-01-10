@@ -182,14 +182,11 @@ export class TargetRunner implements vscode.Disposable {
   private waitForDiagnosticsSettled(modulePath: string, startedAt: number): Promise<void> {
     const moduleRoot = path.resolve(modulePath);
     const modulePrefix = moduleRoot.endsWith(path.sep) ? moduleRoot : moduleRoot + path.sep;
-    const initialWaitMs = 1000;
     const quietWindowMs = 300;
     const maxWaitMs = 5000;
     let quietTimeout: NodeJS.Timeout | undefined;
     let maxTimeout: NodeJS.Timeout | undefined;
-    let initialTimeout: NodeJS.Timeout | undefined;
     let resolvePromise: () => void;
-    let sawChange = false;
     const promise = new Promise<void>((resolve) => {
       resolvePromise = resolve;
     });
@@ -200,9 +197,6 @@ export class TargetRunner implements vscode.Disposable {
       }
       if (maxTimeout) {
         clearTimeout(maxTimeout);
-      }
-      if (initialTimeout) {
-        clearTimeout(initialTimeout);
       }
       if (disposableIndex !== -1) {
         this.disposables.splice(disposableIndex, 1);
@@ -227,7 +221,6 @@ export class TargetRunner implements vscode.Disposable {
         }
         const normalized = path.resolve(fsPath);
         if (normalized === moduleRoot || normalized.startsWith(modulePrefix)) {
-          sawChange = true;
           if (Date.now() >= startedAt) {
             bumpQuietTimer();
           }
@@ -237,11 +230,6 @@ export class TargetRunner implements vscode.Disposable {
     });
     this.disposables.push(disposable);
     disposableIndex = this.disposables.length - 1;
-    initialTimeout = setTimeout(() => {
-      if (!sawChange) {
-        cleanup();
-      }
-    }, initialWaitMs);
     maxTimeout = setTimeout(() => {
       cleanup();
     }, maxWaitMs);
