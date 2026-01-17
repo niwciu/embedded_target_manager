@@ -191,14 +191,20 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
+    "test": "npm run compile && mocha \"out/test/**/*.js\"",
     "package": "vsce package"
   },
   "dependencies": {
     "typescript": "^5.3.3"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.6",
     "@types/node": "^20.11.6",
     "@types/vscode": "^1.85.0",
-    "eslint": "^8.56.0"
+    "@typescript-eslint/eslint-plugin": "^7.5.0",
+    "@typescript-eslint/parser": "^7.5.0",
+    "@vscode/vsce": "^2.24.0",
+    "eslint": "^8.56.0",
+    "mocha": "^10.4.0"
   }
 }
