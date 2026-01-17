@@ -66,7 +66,7 @@ export function createTargetTask(
 
   registerTaskName(taskName);
   task.presentationOptions = {
-    reveal: vscode.TaskRevealKind.Never,
+    reveal: vscode.TaskRevealKind.Always,
     panel: vscode.TaskPanelKind.Dedicated,
     clear: false,
     focus: false,
