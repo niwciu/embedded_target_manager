@@ -1,5 +1,5 @@
 {
-  "name": "embedded-target-runner",
+  "name": "embedded-targets-manager",
   "displayName": "Embedded Targets Manager",
   "description": "Dashboard to discover and run CMake custom targets across embedded test modules.",
   "version": "0.0.1",
@@ -18,7 +18,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onView:targetsManager.menu",
+    "onView:targetsManager",
     "onCommand:targetsManager.refresh",
     "onCommand:targetsManager.runAll",
     "onCommand:targetsManager.rerunFailed",
@@ -50,7 +50,7 @@
     "views": {
       "targetsManager": [
         {
-          "id": "targetsManager.menu",
+          "id": "targetsManager",
           "name": "Embedded Targets Manager",
           "title": "Embedded Targets Manager",
           "icon": "resources/ico.png"

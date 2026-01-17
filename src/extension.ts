@@ -113,7 +113,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     menuViewProvider,
     settingsViewProvider,
-    vscode.window.registerTreeDataProvider('targetsManager.menu', menuViewProvider),
+    vscode.window.registerTreeDataProvider('targetsManager', menuViewProvider),
     vscode.commands.registerCommand('targetsManager.refresh', () => activeController?.refresh()),
     vscode.commands.registerCommand('targetsManager.runAll', () => activeController?.runAll()),
     vscode.commands.registerCommand('targetsManager.rerunFailed', () => activeController?.rerunFailed()),
