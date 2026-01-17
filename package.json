@@ -50,7 +50,7 @@
     "views": {
       "targetsManager": [
         {
-          "id": "targetsManager",
+          "id": "targetsManager.menu",
           "name": "Embedded Targets Manager",
           "title": "Embedded Targets Manager",
           "icon": "resources/ico.png"
