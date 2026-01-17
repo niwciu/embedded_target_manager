@@ -18,7 +18,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onView:targetsManager",
+    "onView:targetsManager.menu",
     "onCommand:targetsManager.refresh",
     "onCommand:targetsManager.runAll",
     "onCommand:targetsManager.rerunFailed",
@@ -50,7 +50,7 @@
     "views": {
       "targetsManager": [
         {
-          "id": "targetsManager",
+          "id": "targetsManager.menu",
           "name": "Embedded Targets Manager",
           "title": "Embedded Targets Manager",
           "icon": "resources/ico.png"
