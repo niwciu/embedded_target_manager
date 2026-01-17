@@ -14,12 +14,18 @@ export interface ConfigureTaskDefinition extends vscode.TaskDefinition {
   moduleId: string;
 }
 
-export function createTargetTask(
+export interface TargetCommand {
+  command: string;
+  args: string[];
+  cwd: string;
+}
+
+export function getTargetCommand(
   moduleInfo: ModuleInfo,
   target: string,
   useNinja: boolean,
   makeJobs: string | number,
-): vscode.Task {
+): TargetCommand {
   const cwd = path.join(moduleInfo.path, 'out');
   const command = useNinja ? 'ninja' : 'make';
   const args: string[] = [];
@@ -30,7 +36,16 @@ export function createTargetTask(
     }
   }
   args.push(target);
+  return { command, args, cwd };
+}
 
+export function createTargetTask(
+  moduleInfo: ModuleInfo,
+  target: string,
+  useNinja: boolean,
+  makeJobs: string | number,
+): vscode.Task {
+  const { command, args, cwd } = getTargetCommand(moduleInfo, target, useNinja, makeJobs);
   const execution = new vscode.ShellExecution(command, args, { cwd });
 
   const definition: TargetTaskDefinition = {

@@ -204,7 +204,7 @@ export class DashboardController implements vscode.Disposable {
     const settings = this.getRunnerSettings();
     for (const target of this.stateStore.getState().targets) {
       if (moduleState.availability[target.name]) {
-        this.enqueueRun(moduleState.module, target.name, settings, true);
+        this.enqueueRun(moduleState.module, target.name, settings, { autoCloseOnSuccess: true, runInTerminal: false });
       }
     }
   }
@@ -213,7 +213,7 @@ export class DashboardController implements vscode.Disposable {
     const settings = this.getRunnerSettings();
     for (const moduleState of this.stateStore.getState().modules) {
       if (moduleState.availability[target]) {
-        this.enqueueRun(moduleState.module, target, settings, true);
+        this.enqueueRun(moduleState.module, target, settings, { autoCloseOnSuccess: true, runInTerminal: false });
       }
     }
   }
@@ -273,7 +273,12 @@ export class DashboardController implements vscode.Disposable {
     }
   }
 
-  private enqueueRun(module: ModuleInfo, target: string, settings: RunnerSettings, autoCloseOnSuccess = false): void {
+  private enqueueRun(
+    module: ModuleInfo,
+    target: string,
+    settings: RunnerSettings,
+    options: { autoCloseOnSuccess?: boolean; runInTerminal?: boolean } = {},
+  ): void {
     const moduleState = this.stateStore.getModuleState(module.id);
     if (!moduleState || !moduleState.availability[target]) {
       return;
@@ -281,12 +286,14 @@ export class DashboardController implements vscode.Disposable {
     const generator = moduleState.generator;
     const useNinja = generator ? generator === 'Ninja' : settings.buildSystem !== 'make';
     const makeJobs = settings.makeJobs === 'auto' ? os.cpus().length : settings.makeJobs;
+    const { autoCloseOnSuccess = false, runInTerminal = true } = options;
     this.runner.enqueue({
       module,
       target,
       useNinja,
       makeJobs,
       autoCloseOnSuccess,
+      runInTerminal,
     });
   }
 
@@ -484,7 +491,10 @@ export class DashboardController implements vscode.Disposable {
         continue;
       }
       this.runAllActive.set(moduleId, nextTarget);
-      this.enqueueRun(moduleState.module, nextTarget, this.getRunnerSettings(), true);
+      this.enqueueRun(moduleState.module, nextTarget, this.getRunnerSettings(), {
+        autoCloseOnSuccess: true,
+        runInTerminal: false,
+      });
       return;
     }
     this.runAllQueues.delete(moduleId);
@@ -526,7 +536,7 @@ export class DashboardController implements vscode.Disposable {
       terminal.show(true);
       return;
     }
-    this.enqueueRun(moduleState.module, target, this.getRunnerSettings(), false);
+    this.enqueueRun(moduleState.module, target, this.getRunnerSettings(), { autoCloseOnSuccess: false });
   }
 
   private async runConfigureTask(moduleInfo: ModuleInfo, generator: string): Promise<number | undefined> {

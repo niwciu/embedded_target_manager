@@ -1,8 +1,9 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ModuleInfo } from '../state/types';
-import { createTargetTask } from '../tasks/taskFactory';
+import { createTargetTask, getTargetCommand } from '../tasks/taskFactory';
 import { clearRegisteredTaskTerminals } from '../tasks/taskRegistry';
+import { runCommandWithExitCode } from '../utils/exec';
 
 export interface RunUpdate {
   moduleId: string;
@@ -17,11 +18,14 @@ export interface RunRequest {
   useNinja: boolean;
   makeJobs: string | number;
   autoCloseOnSuccess: boolean;
+  runInTerminal?: boolean;
 }
+
+type RunningEntry = { kind: 'task'; execution: vscode.TaskExecution } | { kind: 'silent' };
 
 export class TargetRunner implements vscode.Disposable {
   private readonly pending: RunRequest[] = [];
-  private readonly running = new Map<string, vscode.TaskExecution>();
+  private readonly running = new Map<string, RunningEntry>();
   private readonly taskNames = new Map<string, string>();
   private readonly modulePaths = new Map<string, string>();
   private readonly runStartedAt = new Map<string, number>();
@@ -59,8 +63,10 @@ export class TargetRunner implements vscode.Disposable {
   }
 
   stopAll(): void {
-    for (const execution of this.running.values()) {
-      execution.terminate();
+    for (const entry of this.running.values()) {
+      if (entry.kind === 'task') {
+        entry.execution.terminate();
+      }
     }
     this.pending.length = 0;
   }
@@ -88,13 +94,16 @@ export class TargetRunner implements vscode.Disposable {
 
   private async execute(request: RunRequest): Promise<void> {
     const key = this.getKey(request.module.id, request.target);
-    const task = createTargetTask(request.module, request.target, request.useNinja, request.makeJobs);
     this.updates.fire({ moduleId: request.module.id, target: request.target, status: 'running' });
     this.modulePaths.set(key, request.module.path);
     this.runStartedAt.set(key, Date.now());
+    if (request.runInTerminal === false) {
+      this.running.set(key, { kind: 'silent' });
+      await this.executeSilently(request, key);
+      return;
+    }
 
-    const execution = await vscode.tasks.executeTask(task);
-    this.running.set(key, execution);
+    await this.executeInTerminal(request, key);
   }
 
   private async handleTaskEnd(event: vscode.TaskProcessEndEvent): Promise<void> {
@@ -140,6 +149,56 @@ export class TargetRunner implements vscode.Disposable {
     }
     const terminal = vscode.window.terminals.find((item) => item.name === taskName);
     terminal?.dispose();
+  }
+
+  private async executeInTerminal(request: RunRequest, key: string): Promise<void> {
+    const task = createTargetTask(request.module, request.target, request.useNinja, request.makeJobs);
+    const execution = await vscode.tasks.executeTask(task);
+    this.running.set(key, { kind: 'task', execution });
+  }
+
+  private async executeSilently(request: RunRequest, key: string): Promise<void> {
+    const { command, args, cwd } = getTargetCommand(request.module, request.target, request.useNinja, request.makeJobs);
+    const result = await runCommandWithExitCode(command, args, cwd);
+    const output = `${result.stdout}\n${result.stderr}`.trim();
+    const status = this.resolveOutputStatus(result.exitCode ?? 1, output);
+    if (status === 'success') {
+      this.running.delete(key);
+      this.updates.fire({
+        moduleId: request.module.id,
+        target: request.target,
+        status,
+        exitCode: result.exitCode ?? 0,
+      });
+      this.modulePaths.delete(key);
+      this.runStartedAt.delete(key);
+      this.autoCloseOnSuccess.delete(key);
+      this.kick();
+      return;
+    }
+    this.running.delete(key);
+    this.autoCloseOnSuccess.set(key, false);
+    this.runStartedAt.set(key, Date.now());
+    this.updates.fire({ moduleId: request.module.id, target: request.target, status: 'running' });
+    await this.executeInTerminal({ ...request, runInTerminal: true }, key);
+  }
+
+  private resolveOutputStatus(exitCode: number, output: string): RunUpdate['status'] {
+    if (exitCode !== 0) {
+      return 'failed';
+    }
+    if (!output) {
+      return 'success';
+    }
+    const warningPattern = /\bwarning\b/i;
+    const errorPattern = /\berror\b/i;
+    if (errorPattern.test(output)) {
+      return 'failed';
+    }
+    if (warningPattern.test(output)) {
+      return 'warning';
+    }
+    return 'success';
   }
 
   private getDiagnosticsCounts(modulePath: string): { warnings: number; errors: number } {

@@ -8,6 +8,10 @@ export interface ExecResult {
   stderr: string;
 }
 
+export interface ExecResultWithExitCode extends ExecResult {
+  exitCode?: number;
+}
+
 export async function runCommand(command: string, args: string[], cwd: string): Promise<ExecResult> {
   const { stdout, stderr } = await execFileAsync(command, args, {
     cwd,
@@ -15,6 +19,39 @@ export async function runCommand(command: string, args: string[], cwd: string): 
     env: process.env,
   });
   return { stdout: stdout ?? '', stderr: stderr ?? '' };
+}
+
+export async function runCommandWithExitCode(
+  command: string,
+  args: string[],
+  cwd: string,
+): Promise<ExecResultWithExitCode> {
+  try {
+    const { stdout, stderr } = await execFileAsync(command, args, {
+      cwd,
+      maxBuffer: 1024 * 1024,
+      env: process.env,
+    });
+    return { stdout: stdout ?? '', stderr: stderr ?? '', exitCode: 0 };
+  } catch (error) {
+    if (error && typeof error === 'object' && 'stdout' in error && 'stderr' in error) {
+      const stdout =
+        typeof error.stdout === 'string'
+          ? error.stdout
+          : Buffer.isBuffer(error.stdout)
+            ? error.stdout.toString()
+            : '';
+      const stderr =
+        typeof error.stderr === 'string'
+          ? error.stderr
+          : Buffer.isBuffer(error.stderr)
+            ? error.stderr.toString()
+            : '';
+      const exitCode = 'code' in error && typeof error.code === 'number' ? error.code : undefined;
+      return { stdout, stderr, exitCode };
+    }
+    return { stdout: '', stderr: '', exitCode: undefined };
+  }
 }
 
 export async function commandExists(command: string): Promise<boolean> {
