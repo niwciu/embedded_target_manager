@@ -29,15 +29,19 @@ const normalizeDashboards = (dashboards: DashboardDefinition[]): DashboardDefini
     }))
     .filter((dashboard) => dashboard.moduleRoots.length > 0);
 
+const getWorkspaceFolder = (): vscode.WorkspaceFolder | undefined => vscode.workspace.workspaceFolders?.[0];
+
 const getDashboards = (): DashboardDefinition[] => {
-  const config = vscode.workspace.getConfiguration('targetsManager');
+  const folder = getWorkspaceFolder();
+  const config = vscode.workspace.getConfiguration('targetsManager', folder?.uri);
   const configured = config.get<DashboardDefinition[]>('dashboards', DEFAULT_DASHBOARDS);
   const normalized = normalizeDashboards(configured);
   return normalized.length > 0 ? normalized : DEFAULT_DASHBOARDS;
 };
 
 const getBuildSettings = (): Pick<SettingsState, 'buildSystem' | 'makeJobs' | 'maxParallel'> => {
-  const config = vscode.workspace.getConfiguration('targetsManager');
+  const folder = getWorkspaceFolder();
+  const config = vscode.workspace.getConfiguration('targetsManager', folder?.uri);
   const normalizeMakeJobs = (value: string | number): string | number => {
     if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
       return value;
@@ -70,18 +74,20 @@ export function activate(context: vscode.ExtensionContext): void {
       dashboards: getDashboards(),
     }),
     async (message) => {
-      const config = vscode.workspace.getConfiguration('targetsManager');
+      const folder = getWorkspaceFolder();
+      const config = vscode.workspace.getConfiguration('targetsManager', folder?.uri);
+      const target = folder ? vscode.ConfigurationTarget.WorkspaceFolder : vscode.ConfigurationTarget.Workspace;
       if (message.type === 'ready') {
         settingsViewProvider.refresh();
       }
       if (message.type === 'updateBuildSettings') {
-        await config.update('buildSystem', message.payload.buildSystem, vscode.ConfigurationTarget.Workspace);
-        await config.update('makeJobs', message.payload.makeJobs, vscode.ConfigurationTarget.Workspace);
-        await config.update('maxParallel', message.payload.maxParallel, vscode.ConfigurationTarget.Workspace);
+        await config.update('buildSystem', message.payload.buildSystem, target);
+        await config.update('makeJobs', message.payload.makeJobs, target);
+        await config.update('maxParallel', message.payload.maxParallel, target);
         settingsViewProvider.refresh();
       }
       if (message.type === 'updateDashboards') {
-        await config.update('dashboards', message.payload, vscode.ConfigurationTarget.Workspace);
+        await config.update('dashboards', message.payload, target);
         settingsViewProvider.refresh();
       }
     },
