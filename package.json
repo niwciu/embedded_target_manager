@@ -2,12 +2,13 @@
   "name": "embedded-target-runner",
   "displayName": "Embedded Targets Manager",
   "description": "Dashboard to discover and run CMake custom targets across embedded test modules.",
-  "version": "0.1.1",
+  "version": "0.0.1",
   "publisher": "niwciu",
+  "license": "MIT",
   "icon": "resources/ico.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/niwciu/EMBEDDED_TARGET_RUNNER.git"
+    "url": "https://github.com/niwciu/embedded_targets_manager.git"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -47,7 +48,7 @@
       ]
     },
     "views": {
-      "buildAnalyzerEnhancedPanel": [
+      "targetsManager": [
         {
           "id": "targetsManager",
           "name": "Embedded Targets Manager",

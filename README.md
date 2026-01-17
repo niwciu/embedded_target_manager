@@ -1,6 +1,6 @@
 # Embedded Targets Manager
 
-A VS Code extension that discovers CMake modules from configured roots, shows dashboards of custom targets, and runs them through native VS Code tasks/terminals.
+A VS Code extension that discovers CMake configuration "modules" from configured roots, shows dashboards of custom targets, and runs them through native VS Code tasks/terminals.
 
 ## Features
 
@@ -13,7 +13,7 @@ A VS Code extension that discovers CMake modules from configured roots, shows da
 ## Usage
 
 1. Open the **Targets** activity bar icon.
-2. Use **Targets Dashboard** (or another configured dashboard) to view modules and targets.
+2. Use **Targets Dashboard** (or another configured dashboard) to view configurations and their targets.
 3. Click **▶** to run a target, or click the status icon to reveal the terminal.
 4. Use the toolbar to refresh, configure, run all, rerun failed, stop all, or clear task terminals.
 
