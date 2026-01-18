@@ -190,8 +190,8 @@ export class TargetRunner implements vscode.Disposable {
     if (!output) {
       return 'success';
     }
-    const warningPattern = /\bwarning\b/i;
-    const errorPattern = /\berror\b/i;
+    const warningPattern = /(^|\s)warning\s*:/im;
+    const errorPattern = /(^|\s)(fatal\s+)?error\s*:/im;
     if (errorPattern.test(output)) {
       return 'failed';
     }
