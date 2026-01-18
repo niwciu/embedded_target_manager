@@ -36,13 +36,18 @@ export class TargetRunner implements vscode.Disposable {
   private readonly maxOutputSize = 200_000;
 
   constructor(private maxParallel: number) {
+    const tasksAny = vscode.tasks as typeof vscode.tasks & {
+      onDidWriteTaskData?: (listener: (event: unknown) => void) => vscode.Disposable;
+    };
     this.disposables.push(
       vscode.tasks.onDidEndTaskProcess((event) => {
         void this.handleTaskEnd(event);
       }),
-      vscode.tasks.onDidWriteTaskData((event) => {
-        this.handleTaskOutput(event);
-      }),
+      tasksAny.onDidWriteTaskData
+        ? tasksAny.onDidWriteTaskData((event) => {
+            this.handleTaskOutput(event);
+          })
+        : { dispose: () => undefined },
       this.updates,
     );
   }
@@ -152,14 +157,18 @@ export class TargetRunner implements vscode.Disposable {
     return `${moduleName}:${target}`;
   }
 
-  private handleTaskOutput(event: vscode.TaskProcessDataEvent): void {
-    const definition = event.execution.task.definition as { type?: string; moduleId?: string; target?: string };
+  private handleTaskOutput(event: unknown): void {
+    if (!event || typeof event !== 'object' || !('execution' in event) || !('data' in event)) {
+      return;
+    }
+    const { execution, data } = event as { execution: vscode.TaskExecution; data: string };
+    const definition = execution.task.definition as { type?: string; moduleId?: string; target?: string };
     if (definition?.type !== 'targetsManager' || !definition.moduleId || !definition.target) {
       return;
     }
     const key = this.getKey(definition.moduleId, definition.target);
     const existing = this.taskOutput.get(key) ?? '';
-    let next = existing + event.data;
+    let next = existing + data;
     if (next.length > this.maxOutputSize) {
       next = next.slice(next.length - this.maxOutputSize);
     }
