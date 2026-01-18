@@ -169,10 +169,12 @@ export class DashboardController implements vscode.Disposable {
       this.stateStore.setNeedsConfigure(moduleState.module.id, true);
     }
     this.pushState();
-    for (const moduleState of modules) {
-      await this.configureAndDetect(moduleState.module, selectedSettings, false, true);
-      this.pushState();
-    }
+    await Promise.all(
+      modules.map(async (moduleState) => {
+        await this.configureAndDetect(moduleState.module, selectedSettings, false, true, false);
+        this.pushState();
+      }),
+    );
   }
 
   rerunFailed(): void {
@@ -368,6 +370,7 @@ export class DashboardController implements vscode.Disposable {
     settings: RunnerSettings,
     skipConfigure: boolean,
     updateStatus: boolean,
+    runInTerminal: boolean = true,
   ): Promise<void> {
     if (updateStatus) {
       this.stateStore.updateConfigure(moduleInfo.id, { status: 'running', updatedAt: Date.now() });
@@ -378,7 +381,7 @@ export class DashboardController implements vscode.Disposable {
       const generator = await selectGenerator(settings.buildSystem, path.join(moduleInfo.path, 'out'));
       let configureOutput = 'Skipped configure (existing CMake cache).';
       if (!skipConfigure) {
-        if (updateStatus) {
+        if (updateStatus && runInTerminal) {
           const taskName = `${moduleInfo.name}:configure`;
           this.configureTaskNames.set(moduleInfo.id, taskName);
           const exitCode = await this.runConfigureTask(moduleInfo, generator);
