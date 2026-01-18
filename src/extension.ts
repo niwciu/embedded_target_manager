@@ -31,6 +31,13 @@ const normalizeDashboards = (dashboards: DashboardDefinition[]): DashboardDefini
 
 const getWorkspaceFolder = (): vscode.WorkspaceFolder | undefined => vscode.workspace.workspaceFolders?.[0];
 
+const getSettingsTarget = (folder?: vscode.WorkspaceFolder): vscode.ConfigurationTarget => {
+  if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 1 && folder) {
+    return vscode.ConfigurationTarget.WorkspaceFolder;
+  }
+  return vscode.ConfigurationTarget.Workspace;
+};
+
 const getDashboards = (): DashboardDefinition[] => {
   const folder = getWorkspaceFolder();
   const config = vscode.workspace.getConfiguration('targetsManager', folder?.uri);
@@ -76,7 +83,7 @@ export function activate(context: vscode.ExtensionContext): void {
     async (message) => {
       const folder = getWorkspaceFolder();
       const config = vscode.workspace.getConfiguration('targetsManager', folder?.uri);
-      const target = folder ? vscode.ConfigurationTarget.WorkspaceFolder : vscode.ConfigurationTarget.Workspace;
+      const target = getSettingsTarget(folder);
       if (message.type === 'ready') {
         settingsViewProvider.refresh();
       }
